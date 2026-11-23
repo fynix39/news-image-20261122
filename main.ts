@@ -1,9 +1,8 @@
-// news-image-20261122 — one-day world news image for Sunday 22 November 2026.
+// news-image-20261122 — Sunday 22 November 2026, summed up in one image.
 //
-// The entry image lives next to this file as entry.png. This program's only
-// job is to place an exact copy of it in the grader's output directory.
-// It uses nothing but the Node 22 standard library, touches no network,
-// and always writes the same bytes, so two runs are byte-identical.
+// entry.png sits beside this file. This program copies it byte for byte
+// into the grader's output directory. Node 22 standard library only,
+// no network, no randomness — two runs always produce identical bytes.
 //
 // Run locally with:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
@@ -13,15 +12,18 @@ import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const OUTPUT_NAME = "entry.png";
+const MAX_BYTES = 1_048_576;
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 mkdirSync(outDir, { recursive: true });
 
-const sourcePath = new URL(`./${OUTPUT_NAME}`, import.meta.url);
-const image = readFileSync(sourcePath);
+const image = readFileSync(new URL(`./${OUTPUT_NAME}`, import.meta.url));
 
-// The entry must be a whole PNG; refuse to emit anything else.
+// The entry must be a whole PNG within the 1 MiB cap; refuse anything else.
+if (image.length > MAX_BYTES) {
+  throw new Error(`entry.png is ${image.length} bytes, over the 1 MiB cap`);
+}
 if (!image.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC)) {
   throw new Error("entry.png is not a PNG file");
 }
@@ -29,15 +31,12 @@ if (!image.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC)) {
 const targetPath = join(outDir, OUTPUT_NAME);
 writeFileSync(targetPath, image);
 
-// Confirm the file on disk is the PNG we intended to write, not a
-// truncated or mistyped copy.
+// Read back what landed on disk and confirm it is the PNG we meant to
+// write — whole, and not a truncated or mistyped copy.
 const onDisk = readFileSync(targetPath);
-if (!onDisk.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC)) {
-  throw new Error("output on disk is not a PNG file");
+if (!onDisk.equals(image)) {
+  throw new Error("output on disk differs from entry.png");
 }
 
 const written = statSync(targetPath).size;
-if (written !== image.length) {
-  throw new Error(`short write: ${written} of ${image.length} bytes`);
-}
 console.log(`wrote ${targetPath} (${written} bytes)`);
